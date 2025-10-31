@@ -12,7 +12,7 @@ class MusicViewModel extends ChangeNotifier {
   final ApiService _apiService = ApiService();
   final DownloadService _downloadService = DownloadService();
   AudioPlayerHandler? _audioHandler;
-  AudioPlayer? _simplePlayer; // Player simples para quando não tiver AudioService
+  AudioPlayer? _simplePlayer;
   
   List<Song> _playlist = [];
   Map<String, SongState> _songStates = {};
@@ -31,7 +31,14 @@ class MusicViewModel extends ChangeNotifier {
   bool get isShuffleEnabled => _isShuffleEnabled;
   bool get isRepeatOneEnabled => _isRepeatOneEnabled;
   bool get isRepeatAllEnabled => _isRepeatAllEnabled;
+
+  AudioPlayer? get simplePlayer => _simplePlayer;
   
+  Stream<Duration> get positionStream => _simplePlayer?.positionStream ?? const Stream.empty();
+  Stream<Duration> get bufferedPositionStream => _simplePlayer?.bufferedPositionStream ?? const Stream.empty();
+  Stream<Duration> get durationStream {
+    return _simplePlayer?.durationStream.where((d) => d != null).cast<Duration>() ?? const Stream.empty();
+  }
   SongState? getSongState(String songId) => _songStates[songId];
   
   Future<void> initialize() async {
@@ -52,8 +59,8 @@ class MusicViewModel extends ChangeNotifier {
         final localPath = await _downloadService.getLocalFilePath(song);
         _songStates[song.id] = SongState(
           song: song,
-          downloadStatus: localPath != null 
-              ? DownloadStatus.completed 
+          downloadStatus: localPath != null
+              ? DownloadStatus.completed
               : DownloadStatus.idle,
           localPath: localPath,
         );
@@ -141,9 +148,6 @@ class MusicViewModel extends ChangeNotifier {
       });
       
       _simplePlayer!.positionStream.listen((position) {
-        if (position.inSeconds % 5 == 0) {
-          print('⏱️ Posição: ${position.inSeconds}s');
-        }
       });
       
     } catch (e) {
@@ -261,6 +265,17 @@ class MusicViewModel extends ChangeNotifier {
     if (_currentPlayingSongId == songId) {
       _currentPlayingSongId = null;
     }
+  }
+  
+  Future<void> playPrevious() async {
+    if (_playlist.isEmpty || _currentPlayingSongId == null) return;
+    
+    final currentIndex = _playlist.indexWhere((s) => s.id == _currentPlayingSongId);
+    if (currentIndex == -1) return;
+    
+    int previousIndex = (currentIndex - 1 + _playlist.length) % _playlist.length;
+    
+    await playSong(_playlist[previousIndex].id);
   }
   
   void toggleShuffle() {

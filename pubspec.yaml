@@ -8,24 +8,24 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # State Management
+
   provider: ^6.1.1
 
-  # Audio
+
   just_audio: ^0.9.36
   audio_service: ^0.18.12
 
-  # Network & Download
+
   http: ^1.1.0
   dio: ^5.4.0
   path_provider: ^2.1.1
 
-  # Utilities
+
   permission_handler: ^11.0.1
   shared_preferences: ^2.2.2
   intl: ^0.18.1
 
-  # Ícones do app (deve ficar na seção de dependências)
+
   flutter_launcher_icons: ^0.13.1
 
 dev_dependencies:
@@ -36,10 +36,12 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-  # Localizations (para i18n futuro)
+
+  assets:
+    - assets/icon/
   generate: true
 
-# Configuração do flutter_launcher_icons
+
 flutter_icons:
   android: true
   ios: true
