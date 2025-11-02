@@ -25,6 +25,9 @@ dependencies:
   shared_preferences: ^2.2.2
   intl: ^0.18.1
 
+  #Localização
+  geolocator: ^10.1.0
+
   # Ícones do app (deve ficar na seção de dependências)
   flutter_launcher_icons: ^0.13.1
 

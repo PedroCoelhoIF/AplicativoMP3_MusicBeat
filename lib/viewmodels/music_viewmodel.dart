@@ -7,13 +7,16 @@ import '../models/song.dart';
 import '../services/api_service.dart';
 import '../services/download_service.dart';
 import '../services/audio_service_handler.dart';
+import '../services/location_service.dart';
 
 class MusicViewModel extends ChangeNotifier {
   final ApiService _apiService = ApiService();
   final DownloadService _downloadService = DownloadService();
+  final LocationService _locationService = LocationService();
   AudioPlayerHandler? _audioHandler;
-  AudioPlayer? _simplePlayer; // Player simples para quando não tiver AudioService
-  
+  AudioPlayer? _simplePlayer;
+  Timer? _locationTimer; // 🎯 Timer para monitorar localização
+
   List<Song> _playlist = [];
   Map<String, SongState> _songStates = {};
   String? _currentPlayingSongId;
@@ -22,7 +25,11 @@ class MusicViewModel extends ChangeNotifier {
   bool _isShuffleEnabled = false;
   bool _isRepeatOneEnabled = false;
   bool _isRepeatAllEnabled = false;
-  
+  bool _easterEggUnlocked = false;
+
+  // 🎯 Música Easter Egg armazenada separadamente
+  Song? _easterEggSong;
+
   List<Song> get playlist => _playlist;
   Map<String, SongState> get songStates => _songStates;
   String? get currentPlayingSongId => _currentPlayingSongId;
@@ -31,34 +38,100 @@ class MusicViewModel extends ChangeNotifier {
   bool get isShuffleEnabled => _isShuffleEnabled;
   bool get isRepeatOneEnabled => _isRepeatOneEnabled;
   bool get isRepeatAllEnabled => _isRepeatAllEnabled;
-  
+  bool get easterEggUnlocked => _easterEggUnlocked;
+
   SongState? getSongState(String songId) => _songStates[songId];
-  
+
   Future<void> initialize() async {
-    print('🎵 Inicializando player sem AudioService (modo simplificado)');
+    print('🎵 Inicializando Music Beat...');
     _audioHandler = null;
     await loadPlaylist();
+    startLocationMonitoring();
   }
-  
+
+  // 🎯 Monitora localização a cada 10 segundos
+  void startLocationMonitoring() {
+    _locationTimer = Timer.periodic(Duration(seconds: 10), (timer) async {
+      bool isNear = await _locationService.isNearCampus();
+
+      if (isNear && !_easterEggUnlocked) {
+        _addEasterEggSong();
+      } else if (!isNear && _easterEggUnlocked) {
+        _removeEasterEggSong();
+      }
+    });
+  }
+
+  // 🎯 Adiciona música Easter Egg
+  void _addEasterEggSong() {
+    if (_easterEggUnlocked) return;
+
+    _easterEggSong = Song(
+      title: "nome-da-faixa-faixa-5",
+      author: "Os Bilias",
+      url:
+          "https://www.rafaelamorim.com.br/mobile2/musicas/osbilias-nome-da-faixa-faixa-5.mp3",
+      duration: "03:14",
+    );
+
+    _playlist.add(_easterEggSong!);
+
+    _songStates[_easterEggSong!.id] = SongState(
+      song: _easterEggSong!,
+      downloadStatus: DownloadStatus.idle,
+    );
+
+    _easterEggUnlocked = true;
+    notifyListeners();
+
+    print('✅ Música Easter Egg adicionada: ${_easterEggSong!.title}');
+  }
+
+  // 🎯 Remove música Easter Egg
+  void _removeEasterEggSong() {
+    if (!_easterEggUnlocked || _easterEggSong == null) return;
+
+    if (_currentPlayingSongId == _easterEggSong!.id) {
+      stopSong(_easterEggSong!.id);
+    }
+
+    _playlist.removeWhere((song) => song.id == _easterEggSong!.id);
+    _songStates.remove(_easterEggSong!.id);
+
+    _easterEggUnlocked = false;
+    _easterEggSong = null;
+    notifyListeners();
+
+    print('❌ Música Easter Egg removida');
+  }
+
   Future<void> loadPlaylist() async {
     _isLoading = true;
     _error = null;
     notifyListeners();
-    
+
     try {
+      bool isNearCampus = await _locationService.isNearCampus();
+
       _playlist = await _apiService.fetchPlaylist();
-      
+
+      if (isNearCampus) {
+        _addEasterEggSong();
+      }
+
       for (var song in _playlist) {
+        if (_songStates.containsKey(song.id)) continue;
+
         final localPath = await _downloadService.getLocalFilePath(song);
         _songStates[song.id] = SongState(
           song: song,
-          downloadStatus: localPath != null 
-              ? DownloadStatus.completed 
+          downloadStatus: localPath != null
+              ? DownloadStatus.completed
               : DownloadStatus.idle,
           localPath: localPath,
         );
       }
-      
+
       _isLoading = false;
       notifyListeners();
     } catch (e) {
@@ -67,14 +140,14 @@ class MusicViewModel extends ChangeNotifier {
       notifyListeners();
     }
   }
-  
+
   Future<void> playSong(String songId) async {
     final state = _songStates[songId];
     if (state == null) {
       print('❌ Estado da música não encontrado: $songId');
       return;
     }
-    
+
     print('🎵 Iniciando reprodução: ${state.song.title}');
 
     if (_currentPlayingSongId != null && _currentPlayingSongId != songId) {
@@ -95,7 +168,7 @@ class MusicViewModel extends ChangeNotifier {
 
   Future<void> _playLocalFile(SongState state) async {
     print('🎵 Reproduzindo arquivo local: ${state.localPath}');
-    
+
     _updateSongState(
       state.song.id,
       playbackStatus: PlaybackStatus.playing,
@@ -118,34 +191,34 @@ class MusicViewModel extends ChangeNotifier {
   Future<void> _playWithoutAudioService(String filePath) async {
     try {
       print('🎵 Criando player simples...');
-      
+
       _simplePlayer ??= AudioPlayer();
-      
+
       print('📂 Carregando arquivo: $filePath');
       await _simplePlayer!.setFilePath(filePath);
-      
+
       print('▶️ Iniciando reprodução...');
       await _simplePlayer!.play();
-      
+
       print('✅ Reprodução iniciada com sucesso!');
       print('🔊 Volume: ${_simplePlayer!.volume}');
       print('⏱️ Duração: ${_simplePlayer!.duration}');
-      
+
       _simplePlayer!.playerStateStream.listen((state) {
-        print('🎵 Estado do player: ${state.playing ? "Tocando" : "Pausado"} - ${state.processingState}');
-        
+        print(
+            '🎵 Estado do player: ${state.playing ? "Tocando" : "Pausado"} - ${state.processingState}');
+
         if (state.processingState == ProcessingState.completed) {
           print('✅ Música finalizada');
           _onSongCompleted();
         }
       });
-      
+
       _simplePlayer!.positionStream.listen((position) {
         if (position.inSeconds % 5 == 0) {
           print('⏱️ Posição: ${position.inSeconds}s');
         }
       });
-      
     } catch (e) {
       print('❌ Erro ao reproduzir com player simples: $e');
       _updateSongState(
@@ -158,7 +231,7 @@ class MusicViewModel extends ChangeNotifier {
 
   Future<void> _playWithProgressiveStreaming(SongState state) async {
     print('🌊 Iniciando streaming progressivo para: ${state.song.title}');
-    
+
     _updateSongState(
       state.song.id,
       downloadStatus: DownloadStatus.downloading,
@@ -174,8 +247,9 @@ class MusicViewModel extends ChangeNotifier {
           downloadProgress: progress,
         );
 
-        if (progress >= 0.2 && 
-            _songStates[state.song.id]?.playbackStatus == PlaybackStatus.buffering) {
+        if (progress >= 0.2 &&
+            _songStates[state.song.id]?.playbackStatus ==
+                PlaybackStatus.buffering) {
           print('🎯 Buffer de 20% atingido, iniciando reprodução');
           _startStreamingPlayback(state);
         }
@@ -204,7 +278,7 @@ class MusicViewModel extends ChangeNotifier {
   Future<void> _startStreamingPlayback(SongState state) async {
     print('🎬 Tentando iniciar reprodução em streaming...');
     final localPath = await _downloadService.getLocalFilePath(state.song);
-    
+
     if (localPath != null) {
       print('📂 Arquivo encontrado: $localPath');
       _updateSongState(
@@ -262,12 +336,12 @@ class MusicViewModel extends ChangeNotifier {
       _currentPlayingSongId = null;
     }
   }
-  
+
   void toggleShuffle() {
     _isShuffleEnabled = !_isShuffleEnabled;
     notifyListeners();
   }
-  
+
   void toggleRepeatOne() {
     _isRepeatOneEnabled = !_isRepeatOneEnabled;
     if (_isRepeatOneEnabled) {
@@ -275,7 +349,7 @@ class MusicViewModel extends ChangeNotifier {
     }
     notifyListeners();
   }
-  
+
   void toggleRepeatAll() {
     _isRepeatAllEnabled = !_isRepeatAllEnabled;
     if (_isRepeatAllEnabled) {
@@ -283,33 +357,34 @@ class MusicViewModel extends ChangeNotifier {
     }
     notifyListeners();
   }
-  
+
   Future<void> _onSongCompleted() async {
     if (_currentPlayingSongId == null) return;
-    
+
     if (_isRepeatOneEnabled) {
       await playSong(_currentPlayingSongId!);
     } else if (_isRepeatAllEnabled || _playlist.isNotEmpty) {
       await playNext();
     }
   }
-  
+
   Future<void> playNext() async {
     if (_playlist.isEmpty || _currentPlayingSongId == null) return;
-    
-    final currentIndex = _playlist.indexWhere((s) => s.id == _currentPlayingSongId);
+
+    final currentIndex =
+        _playlist.indexWhere((s) => s.id == _currentPlayingSongId);
     if (currentIndex == -1) return;
-    
+
     int nextIndex;
     if (_isShuffleEnabled) {
       nextIndex = Random().nextInt(_playlist.length);
     } else {
       nextIndex = (currentIndex + 1) % _playlist.length;
     }
-    
+
     await playSong(_playlist[nextIndex].id);
   }
-  
+
   void _updateSongState(
     String songId, {
     DownloadStatus? downloadStatus,
@@ -321,7 +396,7 @@ class MusicViewModel extends ChangeNotifier {
   }) {
     final currentState = _songStates[songId];
     if (currentState == null) return;
-    
+
     _songStates[songId] = currentState.copyWith(
       downloadStatus: downloadStatus,
       playbackStatus: playbackStatus,
@@ -332,9 +407,10 @@ class MusicViewModel extends ChangeNotifier {
     );
     notifyListeners();
   }
-  
+
   @override
   void dispose() {
+    _locationTimer?.cancel();
     _downloadService.dispose();
     _audioHandler?.dispose();
     _simplePlayer?.dispose();
