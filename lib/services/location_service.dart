@@ -8,7 +8,7 @@ class LocationService {
   // Cache da última verificação
   DateTime? _lastCheck;
   bool? _lastResult;
-  static const Duration _cacheValidity = Duration(minutes: 5); // ⚡ Cache de 5 minutos
+  static const Duration _cacheValidity = Duration(minutes: 5); //  Cache de 5 minutos
 
   /// Verifica se o usuário está próximo ao Campus (com cache)
   Future<bool> isNearCampus() async {
@@ -37,8 +37,8 @@ class LocationService {
 
       // Obtém posição com timeout curto
       Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.low, // ⚡ Precisão baixa é mais rápida
-        timeLimit: Duration(seconds: 5), // ⚡ Timeout reduzido
+        desiredAccuracy: LocationAccuracy.low, // Precisão baixa é mais rápida
+        timeLimit: Duration(seconds: 5), // Timeout reduzido
       );
 
       // Calcula distância
